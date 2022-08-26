@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,21 +37,18 @@ var (
 // The _Init_() function returns a Cache object
 // based off the provided cache size
 func _Init_(size int) *Cache {
-	// Limited Size
-	if size > 0 {
-		var c *Cache = &Cache{
-			Data:  make([]byte, size+1),
-			Mutex: &sync.RWMutex{},
-		}
-		c.Data[0] = '*'
-		return c
-	}
-	// Unlimited size
-	return &Cache{
-		Data:  []byte{'*'},
-		Mutex: &sync.RWMutex{},
+	c := &Cache{
+		Mutex: new(sync.RWMutex),
 	}
 
+	if size > 0 {
+		c.Data = make([]byte, 1, size+1)
+		c.Data[0] = '*'
+	} else {
+		c.Data = []byte("*")
+	}
+
+	return c
 }
 
 // The Init() function creates the Cache
@@ -111,18 +109,21 @@ func (cache *Cache) Show() string {
 //
 // Returns the removed value of the previously
 // defined key
-func (cache *Cache) Set(key string, data string) string {
+func (cache *Cache) Set(key, data string) string {
 	var removedValue string = cache.Remove(key)
-	// Set the new key
-	key = fmt.Sprintf(`|%s|:~%d{`, key, len(data))
 
-	// Lock/Unlock the mutex
+	buf := make([]byte, 0, len(key)+len(data)+8)
+	buf = append(buf, '|')
+	buf = append(buf, []byte(key)...)
+	buf = append(buf, []byte("|:~")...)
+	buf = append(buf, []byte(strconv.Itoa(len(data)))...)
+	buf = append(buf, '{')
+	buf = append(buf, []byte(data)...)
+	buf = append(buf, '}')
+
 	cache.Mutex.Lock()
-	defer cache.Mutex.Unlock()
-
-	// Set the byte cache value
-	cache.Data = append(
-		cache.Data, append([]byte(key), []byte(fmt.Sprintf(`%s}`, data))...)...)
+	cache.Data = append(cache.Data, buf...)
+	cache.Mutex.Unlock()
 
 	// Return the removed value
 	return removedValue
